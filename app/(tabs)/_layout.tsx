@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { Home, Target, TrendingUp, Trophy, BookOpen } from "lucide-react-native";
+import { Home, Target, TrendingUp, Trophy, Shield } from "lucide-react-native";
 import React from "react";
 import Colors from "@/constants/colors";
 
@@ -49,7 +49,7 @@ export default function TabLayout() {
         name="portfolio"
         options={{
           title: "Portfolio",
-          tabBarIcon: ({ color, size }) => <BookOpen color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => <Shield color={color} size={size} />,
         }}
       />
       <Tabs.Screen

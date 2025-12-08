@@ -2,12 +2,14 @@ import { StyleSheet, Text, View, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Trophy, Flame, TrendingUp } from "lucide-react-native";
-import { useApp } from "@/providers/AppProvider";
 import Colors from "@/constants/colors";
 import { MOCK_LEADERBOARD } from "@/mocks/data";
+import { observer } from "mobx-react-lite";
+import { rootStore } from "@/stores/RootStore";
 
-export default function LeaderboardScreen() {
-  const { totalInvested, streakDays } = useApp();
+const LeaderboardScreen = observer(() => {
+  const { totalInvestmentsValue } = rootStore;
+  const streakDays = 12; // This should be moved to the store later
 
   const getRankMedal = (rank: number) => {
     switch (rank) {
@@ -49,7 +51,7 @@ export default function LeaderboardScreen() {
               <View style={styles.statIconContainer}>
                 <TrendingUp size={24} color={Colors.primary} />
               </View>
-              <Text style={styles.statValue}>${totalInvested.toFixed(0)}</Text>
+              <Text style={styles.statValue}>${totalInvestmentsValue.toFixed(0)}</Text>
               <Text style={styles.statLabel}>Total Diverted</Text>
             </View>
             <View style={styles.statItem}>
@@ -128,7 +130,9 @@ export default function LeaderboardScreen() {
       </ScrollView>
     </View>
   );
-}
+});
+
+export default LeaderboardScreen;
 
 const styles = StyleSheet.create({
   container: {

@@ -2,15 +2,29 @@ import { StyleSheet, Text, View, ScrollView, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { TrendingUp, Check, X } from "lucide-react-native";
-import { useApp } from "@/providers/AppProvider";
 import Colors from "@/constants/colors";
 import { useState, useMemo } from "react";
+import { observer } from "mobx-react-lite";
+import { rootStore } from "@/stores/RootStore";
 
 
 type FilterType = 'all' | 'diverted' | 'spent';
 
-export default function ActivityScreen() {
-  const { transactions, handleTransactionNudge, getETFRecommendation, goals } = useApp();
+// MOCK DATA - This should come from the store eventually
+const MOCK_TRANSACTIONS = [
+    { id: 't1', merchantName: 'Zara', category: 'Fashion', amount: 87.50, date: new Date(Date.now() - 2 * 3600 * 1000).toISOString(), status: 'pending' as const },
+    { id: 't2', merchantName: 'Starbucks', category: 'Dining', amount: 6.25, date: new Date(Date.now() - 26 * 3600 * 1000).toISOString(), status: 'diverted' as const },
+    { id: 't3', merchantName: 'Amazon', category: 'Shopping', amount: 129.99, date: new Date(Date.now() - 48 * 3600 * 1000).toISOString(), status: 'spent' as const },
+];
+
+const ActivityScreen = observer(() => {
+  // NOTE: The logic for transactions, nudging, and recommendations is complex
+  // and would need to be built into the RootStore. For now, we use mock data.
+  const { goals } = rootStore;
+  const [transactions, setTransactions] = useState(MOCK_TRANSACTIONS);
+  const handleTransactionNudge = (transaction: any, status: string) => console.log('Nudge action', transaction.id, status);
+  const getETFRecommendation = (goal: any) => ({ ticker: 'SGOV', name: 'iShares 0-3 Month Treasury Bond ETF', riskLevel: 'Low', description: 'A safe haven for short-term savings.' });
+
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
 
   const filteredTransactions = useMemo(() => {
@@ -167,7 +181,9 @@ export default function ActivityScreen() {
       </ScrollView>
     </View>
   );
-}
+});
+
+export default ActivityScreen;
 
 const styles = StyleSheet.create({
   container: {

@@ -2,15 +2,17 @@ import { StyleSheet, Text, View, ScrollView, Pressable, Animated } from "react-n
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { TrendingUp, Flame, Award, Plus, TrendingDown, Zap, Target, Rocket } from "lucide-react-native";
-import { useApp } from "@/providers/AppProvider";
 import Colors from "@/constants/colors";
 import { Image } from "expo-image";
 import { useState, useRef, useEffect } from "react";
 import { router } from "expo-router";
 import SpendingSimulator from "@/components/SpendingSimulator";
+import { observer } from "mobx-react-lite";
+import { rootStore } from "@/stores/RootStore";
 
-export default function DashboardScreen() {
-  const { goals, totalInvested, streakDays } = useApp();
+const DashboardScreen = observer(() => {
+  const { goals, totalInvestmentsValue } = rootStore;
+  const streakDays = 12; // This should be moved to the store later
   const [showNudge, setShowNudge] = useState<boolean>(false);
   
   // Animations
@@ -165,7 +167,7 @@ export default function DashboardScreen() {
                   <TrendingUp size={28} color={Colors.purple} strokeWidth={2.5} />
                 </Animated.View>
               </View>
-              <Text style={styles.statValue}>${totalInvested.toFixed(2)}</Text>
+              <Text style={styles.statValue}>${totalInvestmentsValue.toFixed(2)}</Text>
               <Text style={styles.statLabel}>Total Invested</Text>
               <View style={styles.shimmerContainer}>
                 <Animated.View
@@ -454,7 +456,9 @@ export default function DashboardScreen() {
       </ScrollView>
     </View>
   );
-}
+});
+
+export default DashboardScreen;
 
 const styles = StyleSheet.create({
   container: {

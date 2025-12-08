@@ -49,6 +49,9 @@ export default function SpendingSimulator() {
   const [currentScenario, setCurrentScenario] = useState<SpendingScenario | null>(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [showRegret, setShowRegret] = useState(false);
+  const [showGoalSelection, setShowGoalSelection] = useState(false);
+  const [showInvestmentExplainer, setShowInvestmentExplainer] = useState(false);
+  const [selectedGoal, setSelectedGoal] = useState<any>(null); // Using any temporarily for Goal type
   const [showCelebration, setShowCelebration] = useState(false);
 
   // Animations
@@ -63,7 +66,7 @@ export default function SpendingSimulator() {
     setCurrentScenario(randomScenario);
     setIsVisible(true);
     setShowConfirmation(true);
-    
+
     // Animate modal entrance
     Animated.parallel([
       Animated.spring(scaleAnim, {
@@ -82,7 +85,7 @@ export default function SpendingSimulator() {
 
   const handleYesSpending = () => {
     setShowConfirmation(false);
-    
+
     // Shake animation for regret
     Animated.sequence([
       Animated.timing(shakeAnim, {
@@ -118,7 +121,26 @@ export default function SpendingSimulator() {
 
   const handleNoSpending = () => {
     setShowConfirmation(false);
-    
+
+    // Smooth transition to goal selection
+    Animated.timing(slideAnim, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowGoalSelection(true);
+    });
+  };
+
+  const handleGoalSelected = (goal: any) => {
+    setSelectedGoal(goal);
+    setShowGoalSelection(false);
+    setShowInvestmentExplainer(true);
+  };
+
+  const handleInvestNow = () => {
+    setShowInvestmentExplainer(false);
+
     // Celebration animation
     Animated.parallel([
       Animated.spring(confettiAnim, {
@@ -151,10 +173,14 @@ export default function SpendingSimulator() {
       }),
     ]).start(() => {
       setIsVisible(false);
+      setIsVisible(false);
       setShowConfirmation(false);
       setShowRegret(false);
+      setShowGoalSelection(false);
+      setShowInvestmentExplainer(false);
       setShowCelebration(false);
       setCurrentScenario(null);
+      setSelectedGoal(null);
       scaleAnim.setValue(0);
       slideAnim.setValue(height);
       fadeAnim.setValue(0);
@@ -165,12 +191,12 @@ export default function SpendingSimulator() {
 
   const calculateGoalImpact = () => {
     if (!currentScenario) return [];
-    
+
     return goals.map(goal => {
       const percentageOfGoal = (currentScenario.amount / goal.targetAmount) * 100;
       const remainingAmount = goal.targetAmount - goal.currentAmount;
       const daysDelayed = Math.round((currentScenario.amount / remainingAmount) * 365);
-      
+
       return {
         goal,
         percentageOfGoal,
@@ -248,6 +274,24 @@ export default function SpendingSimulator() {
                 scenario={currentScenario}
                 onClose={closeModal}
                 confettiAnim={confettiAnim}
+                goal={selectedGoal}
+              />
+            )}
+
+            {showGoalSelection && (
+              <GoalSelectionScreen
+                goals={goals}
+                onSelect={handleGoalSelected}
+                onClose={closeModal}
+              />
+            )}
+
+            {showInvestmentExplainer && selectedGoal && (
+              <InvestmentExplainerScreen
+                scenario={currentScenario}
+                goal={selectedGoal}
+                onInvest={handleInvestNow}
+                onClose={closeModal}
               />
             )}
           </Animated.View>
@@ -383,7 +427,7 @@ function RegretScreen({
                 </Text>
               </View>
             </View>
-            
+
             <View style={styles.impactStats}>
               <View style={styles.impactStat}>
                 <Target size={20} color="#EF4444" />
@@ -422,15 +466,124 @@ function RegretScreen({
   );
 }
 
+// Goal Selection Component
+function GoalSelectionScreen({ goals, onSelect, onClose }: { goals: any[], onSelect: (g: any) => void, onClose: () => void }) {
+  return (
+    <View style={styles.screenContainer}>
+      <View style={styles.headerRow}>
+        <Text style={styles.mainTitle}>Pick a Goal 🎯</Text>
+        <Pressable onPress={onClose}>
+          <X size={24} color={Colors.textSecondary} />
+        </Pressable>
+      </View>
+      <Text style={styles.subtitle}>Where should this money go instead?</Text>
+
+      <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
+        {goals.map((goal) => (
+          <Pressable
+            key={goal.id}
+            style={styles.goalSelectionCard}
+            onPress={() => onSelect(goal)}
+          >
+            <Image source={{ uri: goal.imageUrl }} style={styles.goalThumb} contentFit="cover" />
+            <View style={styles.goalSelectionInfo}>
+              <Text style={styles.goalSelectionTitle}>{goal.title}</Text>
+              <View style={styles.progressBarGeneric}>
+                <View style={[styles.progressFillGeneric, { width: `${(goal.currentAmount / goal.targetAmount) * 100}%`, backgroundColor: getHorizonColor(goal.timeHorizon) }]} />
+              </View>
+              <Text style={styles.goalSelectionStats}>{Math.round((goal.currentAmount / goal.targetAmount) * 100)}% Funded</Text>
+            </View>
+            <ArrowRight size={20} color={Colors.gray400} />
+          </Pressable>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+// Investment Explainer Component
+function InvestmentExplainerScreen({ scenario, goal, onInvest, onClose }: { scenario: SpendingScenario, goal: any, onInvest: () => void, onClose: () => void }) {
+
+  // Mock Logic for Recommendations
+  const getRecommendation = (horizon: string) => {
+    if (horizon === 'short') return { ticker: 'SGOV', name: '0-3 Month Treasury Bond ETF', returnRate: 0.05, risk: 'Low' };
+    if (horizon === 'medium') return { ticker: 'VTI', name: 'Total Stock Market ETF', returnRate: 0.08, risk: 'Medium' };
+    return { ticker: 'QQQ', name: 'Invesco QQQ Trust', returnRate: 0.12, risk: 'High' }; // Long term
+  };
+
+  const rec = getRecommendation(goal.timeHorizon);
+
+  // Simple projection: Future Value = PV * (1 + r)^t
+  // Let's project for 10 years for drama, or 1 year for realism. Let's do 10 years.
+  const years = 10;
+  const futureValue = scenario.amount * Math.pow((1 + rec.returnRate), years);
+  const profit = futureValue - scenario.amount;
+
+  return (
+    <ScrollView style={styles.screenContainer}>
+      <View style={styles.headerRow}>
+        <Text style={styles.mainTitle}>Smart Move! 🧠</Text>
+        <Pressable onPress={onClose}>
+          <X size={24} color={Colors.textSecondary} />
+        </Pressable>
+      </View>
+
+      <Text style={styles.subtitle}>
+        Investing <Text style={{ fontWeight: 'bold', color: Colors.success }}>${scenario.amount}</Text> in <Text style={{ fontWeight: 'bold' }}>{goal.title}</Text>
+      </Text>
+
+      <View style={styles.recommendationCard}>
+        <View style={styles.recHeader}>
+          <View style={styles.tickerBadge}>
+            <Text style={styles.tickerText}>{rec.ticker}</Text>
+          </View>
+          <Text style={styles.recName}>{rec.name}</Text>
+        </View>
+
+        <View style={styles.projectionBox}>
+          <View style={styles.projectionRow}>
+            <Text style={styles.projectionLabel}>If you spend it:</Text>
+            <Text style={styles.projectionValueBad}>$0.00</Text>
+          </View>
+          <View style={[styles.projectionRow, { marginTop: 8 }]}>
+            <Text style={styles.projectionLabel}>If you invest (10y):</Text>
+            <Text style={styles.projectionValueGood}>${futureValue.toFixed(2)}</Text>
+          </View>
+          <View style={styles.growthBarContainer}>
+            <View style={[styles.growthBar, { width: '10%' }]} />
+            <View style={[styles.growthBarFuture, { width: '90%' }]} />
+          </View>
+          <Text style={styles.growthSubtext}>That's a potentially free <Text style={{ color: Colors.success, fontWeight: 'bold' }}>${profit.toFixed(2)}</Text> return!</Text>
+        </View>
+      </View>
+
+      <Pressable style={styles.investNowButton} onPress={onInvest}>
+        <LinearGradient
+          colors={[Colors.secondary, Colors.primary]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.buttonGradient}
+        >
+          <Text style={styles.buttonText}>Confirm Contribution</Text>
+          <ArrowRight size={20} color='white' />
+        </LinearGradient>
+      </Pressable>
+    </ScrollView>
+  );
+}
+
+
 // Celebration Screen Component
 function CelebrationScreen({
   scenario,
   onClose,
   confettiAnim,
+  goal, // Receive selected goal
 }: {
   scenario: SpendingScenario;
   onClose: () => void;
   confettiAnim: Animated.Value;
+  goal?: any;
 }) {
   const floatAnim = useRef(new Animated.Value(0)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
@@ -522,10 +675,19 @@ function CelebrationScreen({
           colors={['#10B98120', '#10B98105']}
           style={styles.celebrationGradient}
         >
+          {/* Show goal progress if avail */}
+          {goal && (
+            <View style={{ marginBottom: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)' }}>
+              <Text style={{ fontSize: 14, color: Colors.textSecondary, marginBottom: 4 }}>Contributed to:</Text>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: Colors.text }}>{goal.title}</Text>
+              <Text style={{ fontSize: 13, color: Colors.success, fontWeight: '600' }}>+ ${scenario.amount.toFixed(0)} Closer to your dream!</Text>
+            </View>
+          )}
+
           <View style={styles.savingsRow}>
             <Award size={32} color="#10B981" />
             <View style={styles.savingsInfo}>
-              <Text style={styles.savingsLabel}>Money Saved</Text>
+              <Text style={styles.savingsLabel}>Total Saved</Text>
               <Text style={styles.savingsAmount}>${scenario.amount.toFixed(2)}</Text>
             </View>
           </View>
@@ -541,12 +703,6 @@ function CelebrationScreen({
               <Text style={styles.benefitIcon}>💪</Text>
               <Text style={styles.benefitText}>
                 Building financial discipline
-              </Text>
-            </View>
-            <View style={styles.benefitItem}>
-              <Text style={styles.benefitIcon}>🚀</Text>
-              <Text style={styles.benefitText}>
-                Getting closer to your dreams
               </Text>
             </View>
           </View>
@@ -572,6 +728,19 @@ function CelebrationScreen({
     </View>
   );
 }
+
+// Helpers
+import { Image } from 'expo-image';
+import { ArrowRight } from 'lucide-react-native';
+
+const getHorizonColor = (horizon: string) => {
+  switch (horizon) {
+    case 'short': return Colors.success;
+    case 'medium': return Colors.warning;
+    case 'long': return Colors.purple;
+    default: return Colors.primary;
+  }
+};
 
 const styles = StyleSheet.create({
   simulatorButton: {
@@ -902,4 +1071,136 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 6,
   },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  goalSelectionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundSecondary,
+    padding: 12,
+    borderRadius: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  goalThumb: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    marginRight: 12,
+    backgroundColor: Colors.gray300,
+  },
+  goalSelectionInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  goalSelectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: 6,
+  },
+  progressBarGeneric: {
+    height: 6,
+    backgroundColor: Colors.borderLight,
+    borderRadius: 3,
+    marginBottom: 4,
+    overflow: 'hidden',
+  },
+  progressFillGeneric: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  goalSelectionStats: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    fontWeight: '600',
+  },
+  recommendationCard: {
+    backgroundColor: Colors.backgroundSecondary,
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 24,
+  },
+  recHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  tickerBadge: {
+    backgroundColor: Colors.text,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginRight: 10,
+  },
+  tickerText: {
+    color: Colors.surface,
+    fontWeight: '800',
+    fontSize: 14,
+  },
+  recName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.text,
+    flex: 1,
+  },
+  projectionBox: {
+    backgroundColor: Colors.surface,
+    padding: 16,
+    borderRadius: 12,
+  },
+  projectionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  projectionLabel: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+  },
+  projectionValueBad: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  projectionValueGood: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: Colors.success,
+  },
+  growthBarContainer: {
+    height: 8,
+    flexDirection: 'row',
+    marginTop: 12,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  growthBar: {
+    height: '100%',
+    backgroundColor: Colors.gray300,
+  },
+  growthBarFuture: {
+    height: '100%',
+    backgroundColor: Colors.success,
+  },
+  growthSubtext: {
+    fontSize: 13,
+    color: Colors.text,
+    marginTop: 10,
+    textAlign: 'center',
+  },
+  investNowButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  }
 });
