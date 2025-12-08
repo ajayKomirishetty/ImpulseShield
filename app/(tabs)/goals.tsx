@@ -97,6 +97,45 @@ interface GoalCardProps {
   getTimeHorizonLabel: (horizon: string) => string;
 }
 
+// --- 4. CONFETTI COMPONENT (Simplified) ---
+interface ConfettiProps {
+  start: boolean;
+}
+
+const Confetti: React.FC<ConfettiProps> = ({ start }) => {
+  if (!start) return null;
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      {[...Array(30)].map((_, i) => (
+        <Animated.View
+          key={i}
+          entering={FadeIn.delay(i * 50).springify()}
+          exiting={FadeOut}
+          style={{
+            position: 'absolute',
+            left: `${Math.random() * 100}%`,
+            top: -20,
+            width: 8,
+            height: 8,
+            borderRadius: 4,
+            backgroundColor: ['#FFD700', '#FF6B6B', '#4ECDC4', '#FF8E53'][i % 4],
+            transform: [{ translateY: withTiming(800, { duration: 2000 + Math.random() * 1000 }) }]
+          }}
+        />
+      ))}
+    </View>
+  )
+}
+
+// --- 2. GOAL CARD COMPONENT with Animation and Motivation ---
+
+interface GoalCardProps {
+  goal: Goal;
+  onPressContribute: (goal: Goal) => void;
+  timeHorizonColor: string;
+  getTimeHorizonLabel: (horizon: string) => string;
+}
+
 const AnimatedGoalCard: React.FC<GoalCardProps> = ({
   goal,
   onPressContribute,
@@ -104,9 +143,10 @@ const AnimatedGoalCard: React.FC<GoalCardProps> = ({
   getTimeHorizonLabel
 }) => {
   const progress = (goal.currentAmount / goal.targetAmount) * 100;
+  const isCompleted = progress >= 100;
   const scale = useSharedValue(1);
   const animatedProgress = useSharedValue(progress);
-  animatedProgress.value = withTiming(progress, { duration: 500 });
+  animatedProgress.value = withTiming(progress, { duration: 1000 });
 
   const cardAnimatedStyle = useAnimatedStyle(() => {
     return {
@@ -117,7 +157,6 @@ const AnimatedGoalCard: React.FC<GoalCardProps> = ({
   const progressAnimatedStyle = useAnimatedStyle(() => {
     return {
       width: `${Math.min(animatedProgress.value, 100)}%`,
-      backgroundColor: timeHorizonColor,
     };
   });
 
@@ -135,13 +174,14 @@ const AnimatedGoalCard: React.FC<GoalCardProps> = ({
           contentFit="cover"
         />
         <LinearGradient
-          colors={['transparent', 'rgba(0,0,0,0.85)']}
+          colors={['transparent', 'rgba(0,0,0,0.6)', 'rgba(0,0,0,0.95)']}
+          locations={[0, 0.4, 1]}
           style={styles.goalOverlay}
         >
           <View style={styles.goalHeader}>
-            <View style={[styles.timeBadge, { backgroundColor: `${timeHorizonColor}20` }]}>
-              <Text style={[styles.timeText, { color: timeHorizonColor }]}>
-                {getTimeHorizonLabel(goal.timeHorizon)}
+            <View style={[styles.timeBadge, { backgroundColor: isCompleted ? Colors.success : `${timeHorizonColor}30` }]}>
+              <Text style={[styles.timeText, { color: isCompleted ? Colors.surface : timeHorizonColor }]}>
+                {isCompleted ? 'GOAL ACHIEVED! 🎉' : getTimeHorizonLabel(goal.timeHorizon)}
               </Text>
             </View>
           </View>
@@ -154,7 +194,7 @@ const AnimatedGoalCard: React.FC<GoalCardProps> = ({
 
             <View style={styles.progressSection}>
               <View style={styles.progressBar}>
-                <Animated.View style={[styles.progressFill, progressAnimatedStyle]} />
+                <Animated.View style={[styles.progressFill, { backgroundColor: isCompleted ? Colors.success : timeHorizonColor }, progressAnimatedStyle]} />
               </View>
               <View style={styles.amountRow}>
                 <Text style={styles.currentAmount}>
@@ -164,15 +204,17 @@ const AnimatedGoalCard: React.FC<GoalCardProps> = ({
                   {formatCurrency(goal.targetAmount)}
                 </Text>
               </View>
-              <Text style={[styles.progressPercent, { color: timeHorizonColor }]}>
-                {progress.toFixed(1)}% Complete! Save today!
+              <Text style={[styles.progressPercent, { color: isCompleted ? Colors.success : timeHorizonColor }]}>
+                {progress.toFixed(1)}% {isCompleted ? 'Done!' : 'Complete'}
               </Text>
             </View>
 
-            <View style={styles.contributeButtonRow}>
-              <Text style={styles.contributeText}>Save & Contribute Now</Text>
-              <ArrowRight size={24} color={Colors.surface} />
-            </View>
+            {!isCompleted && (
+              <View style={styles.contributeButtonRow}>
+                <Text style={styles.contributeText}>Save & Contribute Now</Text>
+                <ArrowRight size={24} color={Colors.surface} />
+              </View>
+            )}
           </View>
         </LinearGradient>
       </Pressable>
@@ -189,13 +231,19 @@ const GoalsScreen = observer(() => {
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
 
+  const [showConfetti, setShowConfetti] = useState(false);
+
   // Use the real MobX action
   const handleContribute = (goalId: string, amount: number) => {
     rootStore.contributeToGoal(goalId, amount);
 
     setModalVisible(false);
+    setShowConfetti(true);
     setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 3000);
+    setTimeout(() => {
+      setShowSuccess(false);
+      setShowConfetti(false);
+    }, 4000);
   };
 
   const handleOpenModal = (goal: Goal) => {
@@ -248,6 +296,7 @@ const GoalsScreen = observer(() => {
           <Text style={styles.successText}>Success! You prioritized saving over spending! 🎉</Text>
         </Animated.View>
       )}
+      <Confetti start={showConfetti} />
 
       <LinearGradient
         // Using a vibrant header gradient

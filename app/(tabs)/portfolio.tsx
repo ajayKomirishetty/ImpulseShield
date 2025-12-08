@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View, ScrollView } from "react-native";
+import { StyleSheet, Text, View, ScrollView, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Shield, TrendingUp } from "lucide-react-native";
@@ -14,14 +14,19 @@ import { PortfolioChart } from '@/components/portfolio/PortfolioChart';
 import { AssetList } from '@/components/portfolio/AssetList';
 import { AssetAllocationChart } from '@/components/portfolio/AssetAllocationChart';
 import { GoalPreviewCard } from '@/components/portfolio/GoalPreviewCard';
+import StockSearchModal from '@/components/portfolio/StockSearchModal';
+import { Search } from 'lucide-react-native';
 
 const PortfolioScreen = observer(() => {
   const { portfolio, goals, allocationData, performanceData, summaryMetrics, totalInvestmentsValue } = rootStore;
   const { dayChange, dayChangePercent } = summaryMetrics;
   const isPositiveToday = dayChange >= 0;
+  const [searchVisible, setSearchVisible] = React.useState(false);
 
   return (
     <View style={styles.container}>
+      <StockSearchModal visible={searchVisible} onClose={() => setSearchVisible(false)} />
+
       {/* --- HEADER --- */}
       <LinearGradient
         colors={[Colors.backgroundDark, Colors.gray800]}
@@ -34,8 +39,13 @@ const PortfolioScreen = observer(() => {
             <Text style={styles.headerTitle}>My Investments</Text>
             <Text style={styles.headerSubtitle}>Wealth built from smart saving</Text>
           </View>
-          <View style={styles.headerIcon}>
-            <Shield size={28} color={Colors.purple} />
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <Pressable onPress={() => setSearchVisible(true)} style={styles.headerIcon}>
+              <Search size={22} color={Colors.surface} />
+            </Pressable>
+            <View style={styles.headerIcon}>
+              <Shield size={28} color={Colors.purple} />
+            </View>
           </View>
         </SafeAreaView>
       </LinearGradient>

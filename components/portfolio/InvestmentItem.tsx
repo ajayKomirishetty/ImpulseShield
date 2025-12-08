@@ -1,8 +1,10 @@
+
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withDelay } from 'react-native-reanimated';
 import { DollarSign, TrendingUp, TrendingDown } from "lucide-react-native";
 import Colors from '@/constants/colors';
+import { router } from 'expo-router';
 import { Investment } from '@/stores/RootStore';
 import { formatCurrency, formatChange } from '@/app/(tabs)/formatters';
 
@@ -29,9 +31,14 @@ export const InvestmentItem: React.FC<InvestmentItemProps> = ({ item, index }) =
         };
     });
 
+    const handlePress = () => {
+        router.push(`/stock/${item.ticker}`);
+    };
+
     return (
         <Animated.View style={[styles.itemContainerWrapper, animatedStyle]}>
             <Pressable
+                onPress={handlePress}
                 style={({ pressed }) => [
                     styles.itemContainer,
                     pressed && { backgroundColor: Colors.backgroundSecondary }
