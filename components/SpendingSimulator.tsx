@@ -1,33 +1,31 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import {
-  View,
-  Text,
   StyleSheet,
   Pressable,
   Modal,
   Animated,
   Dimensions,
-  ScrollView,
+  Text,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import {
-  AlertCircle,
-  TrendingUp,
-  Sparkles,
-  PartyPopper,
-  DollarSign,
-  Target,
-  Award,
-  ShieldCheck,
-  X,
-} from 'lucide-react-native';
+import { Sparkles } from 'lucide-react-native';
 import Colors from '@/constants/colors';
-import { useApp } from '@/providers/AppProvider';
+import { useApp } from '@/providers/AppProvider'; // Keep for now if needed, or rely on RootStore
+import { rootStore } from '@/stores/RootStore';
+
+// Import refactored components
+import ConfirmationScreen from './simulator/ConfirmationScreen';
+import RegretScreen from './simulator/RegretScreen';
+import CelebrationScreen from './simulator/CelebrationScreen';
+import SavingsDestinationScreen from './simulator/SavingsDestinationScreen';
+import InvestmentExplainerScreen from './simulator/InvestmentExplainerScreen';
 
 const { width, height } = Dimensions.get('window');
 
-interface SpendingScenario {
+// --- Interfaces ---
+
+export interface SpendingScenario {
   merchant: string;
   amount: number;
   category: string;
@@ -44,14 +42,16 @@ const SPENDING_SCENARIOS: SpendingScenario[] = [
 ];
 
 export default function SpendingSimulator() {
-  const { goals, handleTransactionNudge } = useApp();
+  const { goals } = rootStore;
   const [isVisible, setIsVisible] = useState(false);
   const [currentScenario, setCurrentScenario] = useState<SpendingScenario | null>(null);
+
+  // State for flow control
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [showRegret, setShowRegret] = useState(false);
   const [showGoalSelection, setShowGoalSelection] = useState(false);
   const [showInvestmentExplainer, setShowInvestmentExplainer] = useState(false);
-  const [selectedGoal, setSelectedGoal] = useState<any>(null); // Using any temporarily for Goal type
+  const [selectedGoal, setSelectedGoal] = useState<any>(null);
   const [showCelebration, setShowCelebration] = useState(false);
 
   // Animations
@@ -86,7 +86,7 @@ export default function SpendingSimulator() {
   const handleYesSpending = () => {
     setShowConfirmation(false);
 
-    // Shake animation for regret
+    // Shake animation logic for regret transition
     Animated.sequence([
       Animated.timing(shakeAnim, {
         toValue: 10,
@@ -139,6 +139,15 @@ export default function SpendingSimulator() {
   };
 
   const handleInvestNow = () => {
+    if (selectedGoal && currentScenario) {
+      if (selectedGoal.type === 'stock') {
+        rootStore.buyStock(selectedGoal.symbol, currentScenario.amount, selectedGoal.name);
+      } else {
+        // It's a goal
+        rootStore.contributeToGoal(selectedGoal.id, currentScenario.amount);
+      }
+    }
+
     setShowInvestmentExplainer(false);
 
     // Celebration animation
@@ -173,7 +182,6 @@ export default function SpendingSimulator() {
       }),
     ]).start(() => {
       setIsVisible(false);
-      setIsVisible(false);
       setShowConfirmation(false);
       setShowRegret(false);
       setShowGoalSelection(false);
@@ -181,6 +189,8 @@ export default function SpendingSimulator() {
       setShowCelebration(false);
       setCurrentScenario(null);
       setSelectedGoal(null);
+
+      // Reset animations
       scaleAnim.setValue(0);
       slideAnim.setValue(height);
       fadeAnim.setValue(0);
@@ -204,22 +214,6 @@ export default function SpendingSimulator() {
       };
     });
   };
-
-  if (!currentScenario) {
-    return (
-      <Pressable style={styles.simulatorButton} onPress={startSimulation}>
-        <LinearGradient
-          colors={['#FF6B6B', '#FF8E53']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.simulatorGradient}
-        >
-          <Sparkles size={24} color={Colors.surface} />
-          <Text style={styles.simulatorButtonText}>Test Spending Control</Text>
-        </LinearGradient>
-      </Pressable>
-    );
-  }
 
   return (
     <>
@@ -251,7 +245,7 @@ export default function SpendingSimulator() {
               },
             ]}
           >
-            {showConfirmation && (
+            {showConfirmation && currentScenario && (
               <ConfirmationScreen
                 scenario={currentScenario}
                 onYes={handleYesSpending}
@@ -260,7 +254,7 @@ export default function SpendingSimulator() {
               />
             )}
 
-            {showRegret && (
+            {showRegret && currentScenario && (
               <RegretScreen
                 scenario={currentScenario}
                 goalImpacts={calculateGoalImpact()}
@@ -269,7 +263,7 @@ export default function SpendingSimulator() {
               />
             )}
 
-            {showCelebration && (
+            {showCelebration && currentScenario && (
               <CelebrationScreen
                 scenario={currentScenario}
                 onClose={closeModal}
@@ -279,14 +273,14 @@ export default function SpendingSimulator() {
             )}
 
             {showGoalSelection && (
-              <GoalSelectionScreen
+              <SavingsDestinationScreen
                 goals={goals}
                 onSelect={handleGoalSelected}
                 onClose={closeModal}
               />
             )}
 
-            {showInvestmentExplainer && selectedGoal && (
+            {showInvestmentExplainer && selectedGoal && currentScenario && (
               <InvestmentExplainerScreen
                 scenario={currentScenario}
                 goal={selectedGoal}
@@ -301,464 +295,24 @@ export default function SpendingSimulator() {
   );
 }
 
-// Confirmation Screen Component
-function ConfirmationScreen({
-  scenario,
-  onYes,
-  onNo,
-  shakeAnim,
-}: {
-  scenario: SpendingScenario;
-  onYes: () => void;
-  onNo: () => void;
-  shakeAnim: Animated.Value;
-}) {
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.05,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-  }, []);
-
-  return (
-    <Animated.View style={[styles.screenContainer, { transform: [{ translateX: shakeAnim }] }]}>
-      <View style={styles.iconContainer}>
-        <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-          <View style={[styles.warningIcon, { backgroundColor: '#FF6B6B20' }]}>
-            <AlertCircle size={56} color="#FF6B6B" strokeWidth={2.5} />
-          </View>
-        </Animated.View>
-      </View>
-
-      <Text style={styles.mainTitle}>Are you sure?</Text>
-      <Text style={styles.subtitle}>You're about to spend on</Text>
-
-      <View style={styles.purchaseCard}>
-        <Text style={styles.merchantEmoji}>{scenario.emoji}</Text>
-        <View style={styles.purchaseInfo}>
-          <Text style={styles.merchantName}>{scenario.merchant}</Text>
-          <Text style={styles.category}>{scenario.category}</Text>
-        </View>
-        <Text style={styles.amount}>${scenario.amount.toFixed(2)}</Text>
-      </View>
-
-      <Text style={styles.warningText}>
-        This could impact your financial goals...
-      </Text>
-
-      <View style={styles.buttonContainer}>
-        <Pressable style={styles.noButton} onPress={onNo}>
-          <LinearGradient
-            colors={[Colors.success, '#10B981']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.buttonGradient}
-          >
-            <ShieldCheck size={24} color={Colors.surface} />
-            <Text style={styles.buttonText}>No, Save It!</Text>
-          </LinearGradient>
-        </Pressable>
-
-        <Pressable style={styles.yesButton} onPress={onYes}>
-          <View style={styles.yesButtonInner}>
-            <Text style={styles.yesButtonText}>Yes, Spend</Text>
-          </View>
-        </Pressable>
-      </View>
-    </Animated.View>
-  );
-}
-
-// Regret Screen Component
-function RegretScreen({
-  scenario,
-  goalImpacts,
-  onClose,
-  slideAnim,
-}: {
-  scenario: SpendingScenario;
-  goalImpacts: any[];
-  onClose: () => void;
-  slideAnim: Animated.Value;
-}) {
-  return (
-    <Animated.View
-      style={[
-        styles.screenContainer,
-        {
-          transform: [{ translateY: slideAnim }],
-        },
-      ]}
-    >
-      <Pressable style={styles.closeButton} onPress={onClose}>
-        <X size={24} color={Colors.textSecondary} />
-      </Pressable>
-
-      <View style={styles.iconContainer}>
-        <View style={[styles.warningIcon, { backgroundColor: '#EF444420' }]}>
-          <Text style={styles.sadEmoji}>😔</Text>
-        </View>
-      </View>
-
-      <Text style={styles.mainTitle}>You Spent ${scenario.amount.toFixed(2)}</Text>
-      <Text style={styles.subtitle}>Here's what it cost you...</Text>
-
-      <ScrollView style={styles.impactList} showsVerticalScrollIndicator={false}>
-        {goalImpacts.map((impact, index) => (
-          <View key={impact.goal.id} style={styles.impactCard}>
-            <View style={styles.impactHeader}>
-              <Text style={styles.impactEmoji}>🎯</Text>
-              <View style={styles.impactInfo}>
-                <Text style={styles.impactGoalName}>{impact.goal.title}</Text>
-                <Text style={styles.impactDescription}>
-                  You needed ${scenario.amount.toFixed(2)} to reach this goal
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.impactStats}>
-              <View style={styles.impactStat}>
-                <Target size={20} color="#EF4444" />
-                <Text style={styles.impactStatText}>
-                  {impact.percentageOfGoal.toFixed(1)}% of goal
-                </Text>
-              </View>
-              <View style={styles.impactStat}>
-                <TrendingUp size={20} color="#EF4444" />
-                <Text style={styles.impactStatText}>
-                  ~{impact.daysDelayed} days delayed
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.contributionBox}>
-              <Text style={styles.contributionLabel}>Should have contributed:</Text>
-              <Text style={styles.contributionAmount}>
-                ${(scenario.amount / goalImpacts.length).toFixed(2)}
-              </Text>
-            </View>
-          </View>
-        ))}
-
-        <View style={styles.regretMessage}>
-          <Text style={styles.regretMessageText}>
-            💡 Next time, think about your future self! Every dollar counts toward your dreams.
-          </Text>
-        </View>
-      </ScrollView>
-
-      <Pressable style={styles.closeActionButton} onPress={onClose}>
-        <Text style={styles.closeActionText}>I'll Do Better Next Time</Text>
-      </Pressable>
-    </Animated.View>
-  );
-}
-
-// Goal Selection Component
-function GoalSelectionScreen({ goals, onSelect, onClose }: { goals: any[], onSelect: (g: any) => void, onClose: () => void }) {
-  return (
-    <View style={styles.screenContainer}>
-      <View style={styles.headerRow}>
-        <Text style={styles.mainTitle}>Pick a Goal 🎯</Text>
-        <Pressable onPress={onClose}>
-          <X size={24} color={Colors.textSecondary} />
-        </Pressable>
-      </View>
-      <Text style={styles.subtitle}>Where should this money go instead?</Text>
-
-      <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
-        {goals.map((goal) => (
-          <Pressable
-            key={goal.id}
-            style={styles.goalSelectionCard}
-            onPress={() => onSelect(goal)}
-          >
-            <Image source={{ uri: goal.imageUrl }} style={styles.goalThumb} contentFit="cover" />
-            <View style={styles.goalSelectionInfo}>
-              <Text style={styles.goalSelectionTitle}>{goal.title}</Text>
-              <View style={styles.progressBarGeneric}>
-                <View style={[styles.progressFillGeneric, { width: `${(goal.currentAmount / goal.targetAmount) * 100}%`, backgroundColor: getHorizonColor(goal.timeHorizon) }]} />
-              </View>
-              <Text style={styles.goalSelectionStats}>{Math.round((goal.currentAmount / goal.targetAmount) * 100)}% Funded</Text>
-            </View>
-            <ArrowRight size={20} color={Colors.gray400} />
-          </Pressable>
-        ))}
-      </ScrollView>
-    </View>
-  );
-}
-
-// Investment Explainer Component
-function InvestmentExplainerScreen({ scenario, goal, onInvest, onClose }: { scenario: SpendingScenario, goal: any, onInvest: () => void, onClose: () => void }) {
-
-  // Mock Logic for Recommendations
-  const getRecommendation = (horizon: string) => {
-    if (horizon === 'short') return { ticker: 'SGOV', name: '0-3 Month Treasury Bond ETF', returnRate: 0.05, risk: 'Low' };
-    if (horizon === 'medium') return { ticker: 'VTI', name: 'Total Stock Market ETF', returnRate: 0.08, risk: 'Medium' };
-    return { ticker: 'QQQ', name: 'Invesco QQQ Trust', returnRate: 0.12, risk: 'High' }; // Long term
-  };
-
-  const rec = getRecommendation(goal.timeHorizon);
-
-  // Simple projection: Future Value = PV * (1 + r)^t
-  // Let's project for 10 years for drama, or 1 year for realism. Let's do 10 years.
-  const years = 10;
-  const futureValue = scenario.amount * Math.pow((1 + rec.returnRate), years);
-  const profit = futureValue - scenario.amount;
-
-  return (
-    <ScrollView style={styles.screenContainer}>
-      <View style={styles.headerRow}>
-        <Text style={styles.mainTitle}>Smart Move! 🧠</Text>
-        <Pressable onPress={onClose}>
-          <X size={24} color={Colors.textSecondary} />
-        </Pressable>
-      </View>
-
-      <Text style={styles.subtitle}>
-        Investing <Text style={{ fontWeight: 'bold', color: Colors.success }}>${scenario.amount}</Text> in <Text style={{ fontWeight: 'bold' }}>{goal.title}</Text>
-      </Text>
-
-      <View style={styles.recommendationCard}>
-        <View style={styles.recHeader}>
-          <View style={styles.tickerBadge}>
-            <Text style={styles.tickerText}>{rec.ticker}</Text>
-          </View>
-          <Text style={styles.recName}>{rec.name}</Text>
-        </View>
-
-        <View style={styles.projectionBox}>
-          <View style={styles.projectionRow}>
-            <Text style={styles.projectionLabel}>If you spend it:</Text>
-            <Text style={styles.projectionValueBad}>$0.00</Text>
-          </View>
-          <View style={[styles.projectionRow, { marginTop: 8 }]}>
-            <Text style={styles.projectionLabel}>If you invest (10y):</Text>
-            <Text style={styles.projectionValueGood}>${futureValue.toFixed(2)}</Text>
-          </View>
-          <View style={styles.growthBarContainer}>
-            <View style={[styles.growthBar, { width: '10%' }]} />
-            <View style={[styles.growthBarFuture, { width: '90%' }]} />
-          </View>
-          <Text style={styles.growthSubtext}>That's a potentially free <Text style={{ color: Colors.success, fontWeight: 'bold' }}>${profit.toFixed(2)}</Text> return!</Text>
-        </View>
-      </View>
-
-      <Pressable style={styles.investNowButton} onPress={onInvest}>
-        <LinearGradient
-          colors={[Colors.secondary, Colors.primary]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.buttonGradient}
-        >
-          <Text style={styles.buttonText}>Confirm Contribution</Text>
-          <ArrowRight size={20} color='white' />
-        </LinearGradient>
-      </Pressable>
-    </ScrollView>
-  );
-}
-
-
-// Celebration Screen Component
-function CelebrationScreen({
-  scenario,
-  onClose,
-  confettiAnim,
-  goal, // Receive selected goal
-}: {
-  scenario: SpendingScenario;
-  onClose: () => void;
-  confettiAnim: Animated.Value;
-  goal?: any;
-}) {
-  const floatAnim = useRef(new Animated.Value(0)).current;
-  const rotateAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.parallel([
-        Animated.sequence([
-          Animated.timing(floatAnim, {
-            toValue: -10,
-            duration: 2000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(floatAnim, {
-            toValue: 0,
-            duration: 2000,
-            useNativeDriver: true,
-          }),
-        ]),
-        Animated.timing(rotateAnim, {
-          toValue: 1,
-          duration: 4000,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-  }, []);
-
-  const rotate = rotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
-  });
-
-  return (
-    <View style={styles.screenContainer}>
-      <Pressable style={styles.closeButton} onPress={onClose}>
-        <X size={24} color={Colors.textSecondary} />
-      </Pressable>
-
-      {/* Animated confetti background */}
-      <View style={styles.confettiContainer}>
-        {[...Array(20)].map((_, i) => (
-          <Animated.View
-            key={i}
-            style={[
-              styles.confetti,
-              {
-                left: `${(i * 5) % 100}%`,
-                backgroundColor: ['#FFD700', '#FF6B6B', '#4ECDC4', '#FF8E53'][i % 4],
-                opacity: confettiAnim,
-                transform: [
-                  {
-                    translateY: confettiAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [-100, 600],
-                    }),
-                  },
-                  {
-                    rotate: confettiAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: ['0deg', '720deg'],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          />
-        ))}
-      </View>
-
-      <Animated.View
-        style={[
-          styles.iconContainer,
-          {
-            transform: [{ translateY: floatAnim }, { rotate }],
-          },
-        ]}
-      >
-        <View style={[styles.warningIcon, { backgroundColor: '#10B98120' }]}>
-          <PartyPopper size={56} color="#10B981" strokeWidth={2.5} />
-        </View>
-      </Animated.View>
-
-      <Text style={[styles.mainTitle, { color: Colors.success }]}>Amazing Choice!</Text>
-      <Text style={styles.subtitle}>You just saved ${scenario.amount.toFixed(2)}</Text>
-
-      <View style={styles.celebrationCard}>
-        <LinearGradient
-          colors={['#10B98120', '#10B98105']}
-          style={styles.celebrationGradient}
-        >
-          {/* Show goal progress if avail */}
-          {goal && (
-            <View style={{ marginBottom: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)' }}>
-              <Text style={{ fontSize: 14, color: Colors.textSecondary, marginBottom: 4 }}>Contributed to:</Text>
-              <Text style={{ fontSize: 18, fontWeight: '800', color: Colors.text }}>{goal.title}</Text>
-              <Text style={{ fontSize: 13, color: Colors.success, fontWeight: '600' }}>+ ${scenario.amount.toFixed(0)} Closer to your dream!</Text>
-            </View>
-          )}
-
-          <View style={styles.savingsRow}>
-            <Award size={32} color="#10B981" />
-            <View style={styles.savingsInfo}>
-              <Text style={styles.savingsLabel}>Total Saved</Text>
-              <Text style={styles.savingsAmount}>${scenario.amount.toFixed(2)}</Text>
-            </View>
-          </View>
-
-          <View style={styles.benefitsList}>
-            <View style={styles.benefitItem}>
-              <Text style={styles.benefitIcon}>🎯</Text>
-              <Text style={styles.benefitText}>
-                Staying focused on your goals
-              </Text>
-            </View>
-            <View style={styles.benefitItem}>
-              <Text style={styles.benefitIcon}>💪</Text>
-              <Text style={styles.benefitText}>
-                Building financial discipline
-              </Text>
-            </View>
-          </View>
-        </LinearGradient>
-      </View>
-
-      <View style={styles.motivationBox}>
-        <Text style={styles.motivationText}>
-          "The secret to getting ahead is getting started. You're doing amazing!" 🌟
-        </Text>
-      </View>
-
-      <Pressable style={styles.celebrateButton} onPress={onClose}>
-        <LinearGradient
-          colors={[Colors.success, '#10B981']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.buttonGradient}
-        >
-          <Text style={styles.buttonText}>Keep It Up!</Text>
-        </LinearGradient>
-      </Pressable>
-    </View>
-  );
-}
-
-// Helpers
-import { Image } from 'expo-image';
-import { ArrowRight } from 'lucide-react-native';
-
-const getHorizonColor = (horizon: string) => {
-  switch (horizon) {
-    case 'short': return Colors.success;
-    case 'medium': return Colors.warning;
-    case 'long': return Colors.purple;
-    default: return Colors.primary;
-  }
-};
-
 const styles = StyleSheet.create({
   simulatorButton: {
-    marginHorizontal: 20,
-    marginBottom: 24,
-    borderRadius: 16,
+    borderRadius: 20,
     overflow: 'hidden',
     shadowColor: '#FF6B6B',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
-    shadowRadius: 12,
+    shadowRadius: 16,
     elevation: 8,
+    marginBottom: 20,
+    marginHorizontal: 20,
   },
   simulatorGradient: {
+    paddingVertical: 18,
+    paddingHorizontal: 24,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 18,
     gap: 12,
   },
   simulatorButtonText: {
@@ -775,432 +329,15 @@ const styles = StyleSheet.create({
   modalContainer: {
     width: width * 0.9,
     maxHeight: height * 0.85,
-    backgroundColor: Colors.surface,
-    borderRadius: 24,
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: 32,
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 20 },
     shadowOpacity: 0.3,
-    shadowRadius: 30,
+    shadowRadius: 40,
     elevation: 20,
-  },
-  screenContainer: {
-    padding: 24,
-  },
-  closeButton: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.backgroundSecondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 10,
-  },
-  iconContainer: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  warningIcon: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sadEmoji: {
-    fontSize: 64,
-  },
-  mainTitle: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: Colors.text,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  purchaseCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.backgroundSecondary,
-    padding: 20,
-    borderRadius: 16,
-    marginBottom: 24,
-    gap: 16,
-  },
-  merchantEmoji: {
-    fontSize: 40,
-  },
-  purchaseInfo: {
-    flex: 1,
-  },
-  merchantName: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.text,
-    marginBottom: 4,
-  },
-  category: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-  },
-  amount: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#FF6B6B',
-  },
-  warningText: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: 24,
-    fontStyle: 'italic',
-  },
-  buttonContainer: {
-    gap: 12,
-  },
-  noButton: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: Colors.success,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  buttonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 18,
-    gap: 8,
-  },
-  buttonText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.surface,
-  },
-  yesButton: {
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: Colors.border,
-  },
-  yesButtonInner: {
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  yesButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-  impactList: {
-    maxHeight: 400,
-    marginBottom: 20,
-  },
-  impactCard: {
-    backgroundColor: '#EF444410',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#EF444420',
+    borderColor: 'rgba(255,255,255,0.1)',
   },
-  impactHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-    gap: 12,
-  },
-  impactEmoji: {
-    fontSize: 32,
-  },
-  impactInfo: {
-    flex: 1,
-  },
-  impactGoalName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.text,
-    marginBottom: 4,
-  },
-  impactDescription: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    lineHeight: 18,
-  },
-  impactStats: {
-    flexDirection: 'row',
-    gap: 16,
-    marginBottom: 12,
-  },
-  impactStat: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  impactStatText: {
-    fontSize: 13,
-    color: '#EF4444',
-    fontWeight: '600',
-  },
-  contributionBox: {
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  contributionLabel: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    fontWeight: '500',
-  },
-  contributionAmount: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#EF4444',
-  },
-  regretMessage: {
-    backgroundColor: `${Colors.secondary}15`,
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 8,
-  },
-  regretMessageText: {
-    fontSize: 14,
-    color: Colors.text,
-    lineHeight: 20,
-    textAlign: 'center',
-  },
-  closeActionButton: {
-    backgroundColor: Colors.backgroundSecondary,
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  closeActionText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  confettiContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 0,
-  },
-  confetti: {
-    position: 'absolute',
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  celebrationCard: {
-    borderRadius: 20,
-    overflow: 'hidden',
-    marginBottom: 20,
-  },
-  celebrationGradient: {
-    padding: 24,
-  },
-  savingsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    marginBottom: 24,
-  },
-  savingsInfo: {
-    flex: 1,
-  },
-  savingsLabel: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    marginBottom: 4,
-  },
-  savingsAmount: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: Colors.success,
-  },
-  benefitsList: {
-    gap: 12,
-  },
-  benefitItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  benefitIcon: {
-    fontSize: 24,
-  },
-  benefitText: {
-    fontSize: 15,
-    color: Colors.text,
-    fontWeight: '500',
-  },
-  motivationBox: {
-    backgroundColor: `${Colors.primary}10`,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-  },
-  motivationText: {
-    fontSize: 14,
-    color: Colors.text,
-    textAlign: 'center',
-    lineHeight: 20,
-    fontStyle: 'italic',
-  },
-  celebrateButton: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: Colors.success,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  goalSelectionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.backgroundSecondary,
-    padding: 12,
-    borderRadius: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  goalThumb: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    marginRight: 12,
-    backgroundColor: Colors.gray300,
-  },
-  goalSelectionInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  goalSelectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.text,
-    marginBottom: 6,
-  },
-  progressBarGeneric: {
-    height: 6,
-    backgroundColor: Colors.borderLight,
-    borderRadius: 3,
-    marginBottom: 4,
-    overflow: 'hidden',
-  },
-  progressFillGeneric: {
-    height: '100%',
-    borderRadius: 3,
-  },
-  goalSelectionStats: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    fontWeight: '600',
-  },
-  recommendationCard: {
-    backgroundColor: Colors.backgroundSecondary,
-    padding: 20,
-    borderRadius: 16,
-    marginBottom: 24,
-  },
-  recHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  tickerBadge: {
-    backgroundColor: Colors.text,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    marginRight: 10,
-  },
-  tickerText: {
-    color: Colors.surface,
-    fontWeight: '800',
-    fontSize: 14,
-  },
-  recName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: Colors.text,
-    flex: 1,
-  },
-  projectionBox: {
-    backgroundColor: Colors.surface,
-    padding: 16,
-    borderRadius: 12,
-  },
-  projectionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  projectionLabel: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-  },
-  projectionValueBad: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-  projectionValueGood: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: Colors.success,
-  },
-  growthBarContainer: {
-    height: 8,
-    flexDirection: 'row',
-    marginTop: 12,
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  growthBar: {
-    height: '100%',
-    backgroundColor: Colors.gray300,
-  },
-  growthBarFuture: {
-    height: '100%',
-    backgroundColor: Colors.success,
-  },
-  growthSubtext: {
-    fontSize: 13,
-    color: Colors.text,
-    marginTop: 10,
-    textAlign: 'center',
-  },
-  investNowButton: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  }
 });

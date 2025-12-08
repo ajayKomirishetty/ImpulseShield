@@ -20,7 +20,7 @@ const Colors = {
   teal: '#00D2FC',
   orange: '#FFC75F',
   green: '#00F2C3',
-  
+
   // --- NEUTRAL SHADES (Crucial for modern UIs) ---
   gray50: '#F9FAFB',
   gray100: '#F3F4F6', // Lighter background/border
@@ -32,7 +32,18 @@ const Colors = {
   gray700: '#374151',
   gray800: '#1F2937',
   gray900: '#111827', // Darkest background
-  
+
+  // --- GRADIENTS ---
+  gradients: {
+    sunset: ['#FF6B6B', '#FFD93D'],
+    ocean: ['#4ECDC4', '#556270'],
+    purpleHaze: ['#845EC2', '#D65DB1'],
+    neon: ['#F72585', '#7209B7', '#3A0CA3', '#4361EE', '#4CC9F0'],
+    soft: ['#FDFBFB', '#EBEDEE'],
+    card: ['#FFFFFF', '#F8F9FA'],
+    darkCard: ['#2D3748', '#1A202C'],
+  },
+
   // --- BACKGROUNDS & SURFACES ---
   background: '#FAFBFF', // Very light background
   backgroundSecondary: '#F3F4F8', // Slightly darker sections
@@ -47,17 +58,17 @@ const Colors = {
   textTertiary: '#9CA3AF', // Hints, disabled state, metadata
   textDark: '#FFFFFF', // Text on dark/primary surfaces
   icon: '#4B5563', // Default icon color (A shade of gray)
-  
+
   // --- BORDERS & SEPARATORS ---
   border: '#E5E7EB', // Standard border (Gray 200)
   borderLight: '#F3F4F6', // Very subtle separator
   borderDark: '#4B5563', // Border in dark mode
-  
+
   // --- SHADOWS & OVERLAYS ---
   shadow: 'rgba(26, 29, 46, 0.1)', // Light shadow color
   shadowStrong: 'rgba(26, 29, 46, 0.25)', // Stronger shadow for elevated elements
   overlay: 'rgba(26, 29, 46, 0.5)', // Modal/screen overlay
-  
+
   // --- GRADIENTS (Can remain the same, they are well-defined) ---
   gradient1: ['#FF6B6B', '#FF8E53'],
   gradient2: ['#4ECDC4', '#44A08D'],

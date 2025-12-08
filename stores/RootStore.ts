@@ -110,6 +110,32 @@ export class RootStore {
         }
     }
 
+    buyStock(symbol: string, amount: number, name: string) {
+        runInAction(() => {
+            const existingInvestment = this.portfolio.find(i => i.ticker === symbol);
+            if (existingInvestment) {
+                existingInvestment.value += amount;
+            } else {
+                this.portfolio.push({
+                    name: name,
+                    ticker: symbol,
+                    value: amount,
+                    gainPercent: 0,
+                    isPositive: true,
+                    goalId: 'general_investing'
+                });
+            }
+            // Add a mock "jump" in performance data for the chart
+            const lastPoint = this.performanceData[this.performanceData.length - 1];
+            if (lastPoint) {
+                this.performanceData.push({
+                    date: 'Now',
+                    portfolioValue: lastPoint.portfolioValue + amount
+                });
+            }
+        });
+    }
+
     getSavingsBreakdownData() {
         // Calculate total investments
         const investmentsTotal = this.totalInvestmentsValue;
